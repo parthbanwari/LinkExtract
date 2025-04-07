@@ -7,7 +7,8 @@ from flask import Flask, request, jsonify, render_template, send_from_directory
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import json
-
+import re  
+# Add this line to import the regex module
 # Load environment variables from .env file
 load_dotenv()
 
@@ -20,7 +21,7 @@ app = Flask(__name__,
 # Configure the Gemini API with the key from .env
 api_key = os.getenv("GOOGLE_API_KEY")
 if not api_key:
-    raise ValueError("No GOOGLE_API_KEY found in .env file")
+    raise ValueError("No GOOGLE_API_KEY found in .en v file")
 
 # Configure PostgreSQL connection
 db_config = {
@@ -54,6 +55,10 @@ def init_db():
         publication_date TEXT,
         author TEXT,
         url TEXT,
+        experience_required TEXT,
+        salary_range TEXT,
+        location TEXT,
+        additional_info JSONB,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     ''')
@@ -64,6 +69,27 @@ def init_db():
 
 # Initialize the database when the app starts
 init_db()
+
+def add_missing_columns():
+    """Add missing columns to the jobs table"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    # Add missing columns if they don't exist
+    cur.execute('''
+    ALTER TABLE jobs 
+    ADD COLUMN IF NOT EXISTS experience_required TEXT,
+    ADD COLUMN IF NOT EXISTS salary_range TEXT,
+    ADD COLUMN IF NOT EXISTS location TEXT,
+    ADD COLUMN IF NOT EXISTS additional_info JSONB DEFAULT '{}'::jsonb;
+    ''')
+    
+    conn.commit()
+    cur.close()
+    conn.close()
+
+# Call this function after init_db()
+add_missing_columns()
 
 @app.route('/', methods=['GET'])
 def index():
@@ -163,9 +189,7 @@ Web Page Content:
 {content}
 ---
 
-Specifically look for job-related information in the content. The URL suggests this is a LinkedIn post about a job opening, so try to identify relevant details even if they're not formatted as a traditional job posting. 
-
-For LinkedIn posts, the text might be more conversational, so look for phrases like "we're hiring", "job opening", "looking for", etc.
+Specifically look for job-related information in the content. Extract as much detail as possible, even if the format is conversational rather than a traditional job posting.
 
 Please extract the information according to the following constraints and format it as a table. If you cannot find a specific piece of information, mark it as "not found".
 
@@ -176,6 +200,14 @@ Please extract the information according to the following constraints and format
 | Required Skills  | A list of skills needed for the job.                 | Look for "skills", "requirements", "qualifications", or similar sections.            |
 | Publication Date | The date the job posting or article was published.   | Try to extract date information. Format as YYYY-MM-DD if possible.                   |
 | Author           | The author of the article.                           | Usually the person who posted the content on LinkedIn.                               |
+| Experience       | Years of experience required for the role.           | Look for mentions of experience requirements.                                        |
+| Salary          | Compensation or salary information.                  | Look for any mentions of salary, pay range, or compensation.                         |
+| Location        | Where the job is located.                           | Look for city, state, country or remote work information.                           |
+| Job Type        | Full-time, part-time, contract, etc.                | Extract the employment type if mentioned.                                            |
+| Education       | Required education level or degree.                  | Look for educational requirements or preferred qualifications.                       |
+| Benefits        | Benefits, perks, or additional incentives.          | Extract information about benefits package if mentioned.                            |
+| Deadline        | Application deadline if specified.                   | When applications close or the posting expires.                                     |
+| Remote          | Whether remote work is available.                    | Look for mentions of remote, hybrid, or in-office requirements.                      |
 
 Present the information only as a standard markdown table with a header row and one data row. Don't include any other text or explanation.
 """
@@ -187,121 +219,126 @@ Present the information only as a standard markdown table with a header row and 
 
 def parse_gemini_response(response_text):
     """Parse the markdown table response from Gemini into a dictionary"""
-    # Default values
+    # Default values for main fields
     result = {
         "job_title": "not found",
         "company_name": "not found", 
         "required_skills": "not found",
         "publication_date": "not found",
-        "author": "not found"
+        "author": "not found",
+        # Add new important fields
+        "experience_required": "not found",
+        "salary_range": "not found",
+        "location": "not found",
+        # Add an additional field to store extra data
+        "additional_info": {}
     }
     
-    try:
-        # First attempt: Try to parse as a markdown table
-        lines = [line.strip() for line in response_text.split('\n') if line.strip()]
-        
-        # Find rows that contain table data (lines with | character)
-        table_rows = [line for line in lines if '|' in line]
-        
-        if len(table_rows) >= 3:  # Header, separator, and at least one data row
-            # Process the first data row after header and separator
-            for i, row in enumerate(table_rows):
-                if i > 1:  # Skip header and separator
-                    # This is our data row
-                    cells = [cell.strip() for cell in row.split('|') if cell.strip()]
-                    headers = [header.strip() for header in table_rows[0].split('|') if header.strip()]
-                    
-                    # Map headers to values
-                    for j, header in enumerate(headers):
-                        if j < len(cells):
-                            header_lower = header.lower()
-                            value = cells[j]
-                            
-                            if 'job title' in header_lower or 'position' in header_lower:
-                                result['job_title'] = value
-                            elif 'company' in header_lower:
-                                result['company_name'] = value
-                            elif 'skill' in header_lower or 'requirement' in header_lower or 'qualif' in header_lower:
-                                result['required_skills'] = value
-                            elif 'date' in header_lower or 'published' in header_lower:
-                                result['publication_date'] = value
-                            elif 'author' in header_lower or 'poster' in header_lower:
-                                result['author'] = value
-                    
-                    break  # We only need the first data row
-        
-        # If we couldn't find values through table parsing, try regex as fallback
-        if all(val == "not found" for val in result.values()):
-            import re
+    # Extract job title
+    job_title_patterns = [
+        r'\|\s*Job Title\s*\|\s*([^|]+)\s*\|',
+        r'\|\s*Title\s*\|\s*([^|]+)\s*\|'
+    ]
+    for pattern in job_title_patterns:
+        match = re.search(pattern, response_text, re.IGNORECASE)
+        if match:
+            result["job_title"] = match.group(1).strip()
+            break
+    
+    # Extract company name
+    company_patterns = [
+        r'\|\s*Company Name\s*\|\s*([^|]+)\s*\|',
+        r'\|\s*Company\s*\|\s*([^|]+)\s*\|'
+    ]
+    for pattern in company_patterns:
+        match = re.search(pattern, response_text, re.IGNORECASE)
+        if match:
+            result["company_name"] = match.group(1).strip()
+            break
+    
+    # Extract required skills
+    skills_patterns = [
+        r'\|\s*Required Skills\s*\|\s*([^|]+)\s*\|',
+        r'\|\s*Skills\s*\|\s*([^|]+)\s*\|'
+    ]
+    for pattern in skills_patterns:
+        match = re.search(pattern, response_text, re.IGNORECASE)
+        if match:
+            result["required_skills"] = match.group(1).strip()
+            break
+    
+    # Extract publication date
+    date_patterns = [
+        r'\|\s*Publication Date\s*\|\s*([^|]+)\s*\|',
+        r'\|\s*Date\s*\|\s*([^|]+)\s*\|'
+    ]
+    for pattern in date_patterns:
+        match = re.search(pattern, response_text, re.IGNORECASE)
+        if match:
+            result["publication_date"] = match.group(1).strip()
+            break
+    
+    # Extract author
+    author_patterns = [
+        r'\|\s*Author\s*\|\s*([^|]+)\s*\|'
+    ]
+    for pattern in author_patterns:
+        match = re.search(pattern, response_text, re.IGNORECASE)
+        if match:
+            result["author"] = match.group(1).strip()
+            break
+    
+    # Extract experience required
+    experience_patterns = [
+        r'\|\s*(?:Experience|Experience Required|Work Experience)\s*\|\s*([^|]+)\s*\|',
+        r'Experience:?\s*([^\n]+)'
+    ]
+    for pattern in experience_patterns:
+        match = re.search(pattern, response_text, re.IGNORECASE)
+        if match:
+            result["experience_required"] = match.group(1).strip()
+            break
             
-            # Try to find job title
-            title_patterns = [
-                r'\|\s*(?:Job Title|Title|Position|Role)\s*\|\s*([^|]+)\s*\|',
-                r'Job Title:?\s*([^\n]+)'
-            ]
-            for pattern in title_patterns:
-                match = re.search(pattern, response_text, re.IGNORECASE)
-                if match:
-                    result["job_title"] = match.group(1).strip()
-                    break
+    # Extract salary range
+    salary_patterns = [
+        r'\|\s*(?:Salary|Compensation|Salary Range|Pay)\s*\|\s*([^|]+)\s*\|',
+        r'Salary:?\s*([^\n]+)',
+        r'Compensation:?\s*([^\n]+)'
+    ]
+    for pattern in salary_patterns:
+        match = re.search(pattern, response_text, re.IGNORECASE)
+        if match:
+            result["salary_range"] = match.group(1).strip()
+            break
             
-            # Try to find company name
-            company_patterns = [
-                r'\|\s*(?:Company Name|Company|Organization)\s*\|\s*([^|]+)\s*\|',
-                r'Company:?\s*([^\n]+)'
-            ]
-            for pattern in company_patterns:
-                match = re.search(pattern, response_text, re.IGNORECASE)
-                if match:
-                    result["company_name"] = match.group(1).strip()
-                    break
+    # Extract location
+    location_patterns = [
+        r'\|\s*(?:Location|Job Location|Work Location)\s*\|\s*([^|]+)\s*\|',
+        r'Location:?\s*([^\n]+)'
+    ]
+    for pattern in location_patterns:
+        match = re.search(pattern, response_text, re.IGNORECASE)
+        if match:
+            result["location"] = match.group(1).strip()
+            break
+    
+    # Extract any other information found in the response that might be useful
+    other_patterns = [
+        (r'\|\s*(?:Job Type|Employment Type)\s*\|\s*([^|]+)\s*\|', "job_type"),
+        (r'\|\s*(?:Education|Education Required)\s*\|\s*([^|]+)\s*\|', "education"),
+        (r'\|\s*(?:Benefits|Perks)\s*\|\s*([^|]+)\s*\|', "benefits"),
+        (r'\|\s*(?:Application Deadline|Deadline)\s*\|\s*([^|]+)\s*\|', "deadline"),
+        (r'\|\s*(?:Remote|Remote Work)\s*\|\s*([^|]+)\s*\|', "remote_options")
+    ]
+    
+    for pattern, key in other_patterns:
+        match = re.search(pattern, response_text, re.IGNORECASE)
+        if match:
+            value = match.group(1).strip()
+            if value.lower() != "not found":
+                result["additional_info"][key] = value
             
-            # Try to find required skills
-            skills_patterns = [
-                r'\|\s*(?:Required Skills|Skills|Requirements|Qualifications)\s*\|\s*([^|]+)\s*\|',
-                r'Skills:?\s*([^\n]+)',
-                r'Requirements:?\s*([^\n]+)'
-            ]
-            for pattern in skills_patterns:
-                match = re.search(pattern, response_text, re.IGNORECASE)
-                if match:
-                    result["required_skills"] = match.group(1).strip()
-                    break
-            
-            # Try to find publication date
-            date_patterns = [
-                r'\|\s*(?:Publication Date|Date|Published|Posted)\s*\|\s*([^|]+)\s*\|',
-                r'Date:?\s*([^\n]+)',
-                r'Published:?\s*([^\n]+)'
-            ]
-            for pattern in date_patterns:
-                match = re.search(pattern, response_text, re.IGNORECASE)
-                if match:
-                    result["publication_date"] = match.group(1).strip()
-                    break
-            
-            # Try to find author
-            author_patterns = [
-                r'\|\s*(?:Author|Posted By|Creator)\s*\|\s*([^|]+)\s*\|',
-                r'Author:?\s*([^\n]+)',
-                r'Posted by:?\s*([^\n]+)'
-            ]
-            for pattern in author_patterns:
-                match = re.search(pattern, response_text, re.IGNORECASE)
-                if match:
-                    result["author"] = match.group(1).strip()
-                    break
-        
-        # Clean up any "not found" variations or empty values
-        for key, value in result.items():
-            if not value or value.lower() in ['not found', 'n/a', '-']:
-                result[key] = "not found"
-                
-        return result
-    except Exception as e:
-        print(f"Error parsing Gemini response: {str(e)}")
-        print(f"Response text: {response_text}")
-        return result
+    return result
 
 @app.route('/delete_job/<int:job_id>', methods=['POST'])
 def delete_job(job_id):
@@ -331,8 +368,11 @@ def save_job():
         
         # Insert the job data into the database
         cur.execute('''
-        INSERT INTO jobs (job_title, company_name, required_skills, publication_date, author, url)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        INSERT INTO jobs (
+            job_title, company_name, required_skills, publication_date, author, url,
+            experience_required, salary_range, location, additional_info
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id
         ''', (
             data.get('job_title', 'not found'),
@@ -340,7 +380,11 @@ def save_job():
             data.get('required_skills', 'not found'),
             data.get('publication_date', 'not found'),
             data.get('author', 'not found'),
-            data.get('url', '')
+            data.get('url', ''),
+            data.get('experience_required', 'not found'),
+            data.get('salary_range', 'not found'),
+            data.get('location', 'not found'),
+            json.dumps(data.get('additional_info', {}))
         ))
         
         job_id = cur.fetchone()[0]

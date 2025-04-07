@@ -187,8 +187,20 @@
                                         <td id="companyName">-</td>
                                     </tr>
                                     <tr>
+                                        <td>Location</td>
+                                        <td id="location">-</td>
+                                    </tr>
+                                    <tr>
                                         <td>Required Skills</td>
                                         <td id="requiredSkills">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Experience Required</td>
+                                        <td id="experienceRequired">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Salary Range</td>
+                                        <td id="salaryRange">-</td>
                                     </tr>
                                     <tr>
                                         <td>Publication Date</td>
@@ -200,6 +212,28 @@
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+
+                    <div class="card mt-3">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Additional Job Information</h5>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-bordered" id="additionalInfoTable">
+                                <thead>
+                                    <tr>
+                                        <th>Field</th>
+                                        <th>Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="additionalInfoTableBody">
+                                    <!-- Additional information will be populated here -->
+                                </tbody>
+                            </table>
+                            <div id="noAdditionalInfo" class="text-center p-3 d-none">
+                                <p class="text-muted mb-0">No additional information available for this job posting.</p>
+                            </div>
                         </div>
                     </div>
                     
@@ -355,7 +389,7 @@
                     }
                     return response.json();
                 })
-                // Add this right after receiving data in the fetch response in the analyze button handler
+               
                 .then(data => {
                     // Debug logging
                     console.log("Received data:", data);
@@ -368,12 +402,43 @@
                     // Store the current job data
                     currentJobData = data.parsed_data;
                     
-                    // Display the parsed data in the table
+                    // Display the parsed data in the main table
                     document.getElementById('jobTitle').textContent = data.parsed_data.job_title;
                     document.getElementById('companyName').textContent = data.parsed_data.company_name;
                     document.getElementById('requiredSkills').textContent = data.parsed_data.required_skills;
                     document.getElementById('publicationDate').textContent = data.parsed_data.publication_date;
                     document.getElementById('author').textContent = data.parsed_data.author;
+                    
+                    // Display the new fields
+                    document.getElementById('location').textContent = data.parsed_data.location || "not found";
+                    document.getElementById('experienceRequired').textContent = data.parsed_data.experience_required || "not found";
+                    document.getElementById('salaryRange').textContent = data.parsed_data.salary_range || "not found";
+                    
+                    // Display additional information
+                    const additionalInfoTableBody = document.getElementById('additionalInfoTableBody');
+                    const noAdditionalInfo = document.getElementById('noAdditionalInfo');
+                    
+                    // Clear the table
+                    additionalInfoTableBody.innerHTML = '';
+                    
+                    if (data.parsed_data.additional_info && Object.keys(data.parsed_data.additional_info).length > 0) {
+                        noAdditionalInfo.classList.add('d-none');
+                        
+                        // Add each piece of additional information to the table
+                        for (const [key, value] of Object.entries(data.parsed_data.additional_info)) {
+                            const row = document.createElement('tr');
+                            const formattedKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                            
+                            row.innerHTML = `
+                                <td>${formattedKey}</td>
+                                <td>${escapeHtml(value)}</td>
+                            `;
+                            
+                            additionalInfoTableBody.appendChild(row);
+                        }
+                    } else {
+                        noAdditionalInfo.classList.remove('d-none');
+                    }
                     
                     // Display the raw results
                     document.getElementById('rawResults').textContent = data.results;
@@ -445,6 +510,9 @@
                 convertToInputField('requiredSkills', currentJobData.required_skills);
                 convertToInputField('publicationDate', currentJobData.publication_date);
                 convertToInputField('author', currentJobData.author);
+                convertToInputField('location', currentJobData.location || "not found");
+                convertToInputField('experienceRequired', currentJobData.experience_required || "not found");
+                convertToInputField('salaryRange', currentJobData.salary_range || "not found");
             } else {
                 // Save changes
                 saveEdits();
@@ -453,6 +521,33 @@
                 editButton.innerHTML = '<i class="fas fa-edit me-1"></i>Edit';
                 editButton.classList.replace('btn-success', 'btn-primary');
             }
+        }
+
+        function saveEdits() {
+            // Get values from input fields
+            currentJobData.job_title = document.querySelector('#jobTitle input').value;
+            currentJobData.company_name = document.querySelector('#companyName input').value;
+            currentJobData.required_skills = document.querySelector('#requiredSkills input').value;
+            currentJobData.publication_date = document.querySelector('#publicationDate input').value;
+            currentJobData.author = document.querySelector('#author input').value;
+            currentJobData.location = document.querySelector('#location input').value;
+            currentJobData.experience_required = document.querySelector('#experienceRequired input').value;
+            currentJobData.salary_range = document.querySelector('#salaryRange input').value;
+            
+            // Update the table with new values
+            document.getElementById('jobTitle').textContent = currentJobData.job_title;
+            document.getElementById('companyName').textContent = currentJobData.company_name;
+            document.getElementById('requiredSkills').textContent = currentJobData.required_skills;
+            document.getElementById('publicationDate').textContent = currentJobData.publication_date;
+            document.getElementById('author').textContent = currentJobData.author;
+            document.getElementById('location').textContent = currentJobData.location;
+            document.getElementById('experienceRequired').textContent = currentJobData.experience_required;
+            document.getElementById('salaryRange').textContent = currentJobData.salary_range;
+            
+            // Remove edit-mode class
+            document.querySelectorAll('.edit-mode').forEach(el => {
+                el.classList.remove('edit-mode');
+            });
         }
         
         function convertToInputField(id, value) {
