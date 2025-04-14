@@ -5,116 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f5f7fa;
-            padding: 20px;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        
-        .card {
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
-        }
-        
-        .card-header {
-            background-color: #4361ee;
-            color: white;
-            border-radius: 10px 10px 0 0 !important;
-            padding: 15px 20px;
-        }
-        
-        #urlInput {
-            border-radius: 5px;
-            padding: 10px;
-            font-size: 16px;
-        }
-        
-        .btn-primary {
-            background-color: #4361ee;
-            border-color: #4361ee;
-        }
-        
-        .btn-primary:hover {
-            background-color: #3a56d4;
-            border-color: #3a56d4;
-        }
-        
-        .btn-success {
-            background-color: #4CAF50;
-            border-color: #4CAF50;
-        }
-        
-        .btn-success:hover {
-            background-color: #45a049;
-            border-color: #45a049;
-        }
-        
-        .loading {
-            display: none;
-            font-weight: bold;
-            color: #4361ee;
-        }
-        
-        .results-container {
-            display: none;
-        }
-        
-        table {
-            width: 100%;
-        }
-        
-        .edit-mode input {
-            width: 100%;
-            padding: 5px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        
-        .toast-container {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1050;
-        }
-        
-        .saved-jobs-table th, .saved-jobs-table td {
-            vertical-align: middle;
-        }
-        
-        .nav-tabs {
-            border-bottom: 2px solid #dee2e6;
-            margin-bottom: 20px;
-        }
-        
-        .nav-tabs .nav-link {
-            border: none;
-            color: #495057;
-            font-weight: 500;
-            padding: 10px 15px;
-        }
-        
-        .nav-tabs .nav-link.active {
-            color: #4361ee;
-            background-color: transparent;
-            border-bottom: 3px solid #4361ee;
-        }
-        
-        .action-buttons .btn {
-            padding: 0.25rem 0.5rem;
-            margin-right: 0.25rem;
-        }
-        
-        .action-buttons .btn:last-child {
-            margin-right: 0;
-        }
-    </style>
+    <link rel="stylesheet" href="index.css">
 </head>
 <body>
     <div class="container">
@@ -208,7 +99,13 @@
                                     </tr>
                                     <tr>
                                         <td>Author</td>
-                                        <td id="author">-</td>
+                                        <td id="authorLink">-</td>
+                                    </tr>
+                                    <!-- Additional information will be added here dynamically -->
+                                    <tr id="additionalInfoPlaceholder" style="display: none;">
+                                        <td colspan="2" class="text-center">
+                                            <p class="text-muted mb-0">No additional information available.</p>
+                                        </td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -217,22 +114,11 @@
 
                     <div class="card mt-3">
                         <div class="card-header">
-                            <h5 class="card-title mb-0">Additional Job Information</h5>
+                            <h5 class="card-title mb-0">Raw Page Content</h5>
                         </div>
-                        <div class="card-body">
-                            <table class="table table-bordered" id="additionalInfoTable">
-                                <thead>
-                                    <tr>
-                                        <th>Field</th>
-                                        <th>Value</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="additionalInfoTableBody">
-                                    <!-- Additional information will be populated here -->
-                                </tbody>
-                            </table>
-                            <div id="noAdditionalInfo" class="text-center p-3 d-none">
-                                <p class="text-muted mb-0">No additional information available for this job posting.</p>
+                        <div class="card-body p-0">
+                            <div class="raw-content-container">
+                                <pre id="rawPageContent" class="bg-light">No content available yet.</pre>
                             </div>
                         </div>
                     </div>
@@ -242,7 +128,7 @@
                             <h5 class="card-title mb-0">Raw Extraction Results</h5>
                         </div>
                         <div class="card-body">
-                            <pre id="rawResults" class="bg-light p-3 rounded"></pre>
+                            <pre id="rawResults" class="bg-light p-3 rounded">No results available yet.</pre>
                         </div>
                     </div>
                 </div>
@@ -389,7 +275,6 @@
                     }
                     return response.json();
                 })
-               
                 .then(data => {
                     // Debug logging
                     console.log("Received data:", data);
@@ -403,41 +288,56 @@
                     currentJobData = data.parsed_data;
                     
                     // Display the parsed data in the main table
-                    document.getElementById('jobTitle').textContent = data.parsed_data.job_title;
-                    document.getElementById('companyName').textContent = data.parsed_data.company_name;
-                    document.getElementById('requiredSkills').textContent = data.parsed_data.required_skills;
-                    document.getElementById('publicationDate').textContent = data.parsed_data.publication_date;
-                    document.getElementById('author').textContent = data.parsed_data.author;
+                    document.getElementById('jobTitle').textContent = data.parsed_data.job_title || "not found";
+                    document.getElementById('companyName').textContent = data.parsed_data.company_name || "not found";
+                    document.getElementById('requiredSkills').textContent = data.parsed_data.required_skills || "not found";
+                    document.getElementById('publicationDate').textContent = data.parsed_data.publication_date || "not found";
+                    
+                    // Display the author as a link if profile URL is available
+                    const authorLinkCell = document.getElementById('authorLink');
+                    if (data.parsed_data.author_profile_url && data.parsed_data.author) {
+                        authorLinkCell.innerHTML = `<a href="${data.parsed_data.author_profile_url}" target="_blank">${data.parsed_data.author}</a>`;
+                    } else {
+                        authorLinkCell.textContent = data.parsed_data.author || "not found";
+                    }
+
+                    // Display raw page content if available
+                    if (data.raw_content) {
+                        document.getElementById('rawPageContent').textContent = data.raw_content.substring(0, 10000) + 
+                            (data.raw_content.length > 10000 ? "... (content truncated)" : "");
+                    }
                     
                     // Display the new fields
                     document.getElementById('location').textContent = data.parsed_data.location || "not found";
                     document.getElementById('experienceRequired').textContent = data.parsed_data.experience_required || "not found";
                     document.getElementById('salaryRange').textContent = data.parsed_data.salary_range || "not found";
                     
-                    // Display additional information
-                    const additionalInfoTableBody = document.getElementById('additionalInfoTableBody');
-                    const noAdditionalInfo = document.getElementById('noAdditionalInfo');
+                    // Add additional information to the main table
+                    const jobDataTable = document.getElementById('jobDataTable');
+                    const additionalInfoPlaceholder = document.getElementById('additionalInfoPlaceholder');
                     
-                    // Clear the table
-                    additionalInfoTableBody.innerHTML = '';
+                    // First, remove any previously added additional info rows
+                    const rows = jobDataTable.querySelectorAll('tr.additional-info-row');
+                    rows.forEach(row => row.remove());
                     
+                    // Add additional information rows
                     if (data.parsed_data.additional_info && Object.keys(data.parsed_data.additional_info).length > 0) {
-                        noAdditionalInfo.classList.add('d-none');
+                        additionalInfoPlaceholder.style.display = 'none';
                         
-                        // Add each piece of additional information to the table
                         for (const [key, value] of Object.entries(data.parsed_data.additional_info)) {
-                            const row = document.createElement('tr');
                             const formattedKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                            const row = document.createElement('tr');
+                            row.classList.add('additional-info-row');
                             
                             row.innerHTML = `
                                 <td>${formattedKey}</td>
                                 <td>${escapeHtml(value)}</td>
                             `;
                             
-                            additionalInfoTableBody.appendChild(row);
+                            jobDataTable.appendChild(row);
                         }
                     } else {
-                        noAdditionalInfo.classList.remove('d-none');
+                        additionalInfoPlaceholder.style.display = 'table-row';
                     }
                     
                     // Display the raw results
@@ -505,14 +405,35 @@
                 editButton.classList.replace('btn-primary', 'btn-success');
                 
                 // Replace text with input fields
-                convertToInputField('jobTitle', currentJobData.job_title);
-                convertToInputField('companyName', currentJobData.company_name);
-                convertToInputField('requiredSkills', currentJobData.required_skills);
-                convertToInputField('publicationDate', currentJobData.publication_date);
-                convertToInputField('author', currentJobData.author);
-                convertToInputField('location', currentJobData.location || "not found");
-                convertToInputField('experienceRequired', currentJobData.experience_required || "not found");
-                convertToInputField('salaryRange', currentJobData.salary_range || "not found");
+                convertToInputField('jobTitle', currentJobData.job_title || "");
+                convertToInputField('companyName', currentJobData.company_name || "");
+                convertToInputField('requiredSkills', currentJobData.required_skills || "");
+                convertToInputField('publicationDate', currentJobData.publication_date || "");
+                convertToInputField('location', currentJobData.location || "");
+                convertToInputField('experienceRequired', currentJobData.experience_required || "");
+                convertToInputField('salaryRange', currentJobData.salary_range || "");
+                
+                // Handle the author field differently - preserve the link information
+                const authorElement = document.getElementById('authorLink');
+                const authorName = currentJobData.author || "";
+                const authorUrl = currentJobData.author_profile_url || "";
+                
+                authorElement.innerHTML = `
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="authorName" value="${authorName.replace(/"/g, '&quot;')}" placeholder="Author name">
+                        <input type="text" class="form-control" id="authorUrl" value="${authorUrl.replace(/"/g, '&quot;')}" placeholder="LinkedIn profile URL">
+                    </div>
+                `;
+                authorElement.classList.add('edit-mode');
+                
+                // Also convert additional info rows
+                document.querySelectorAll('tr.additional-info-row').forEach(row => {
+                    const key = row.cells[0].textContent.toLowerCase().replace(/\s+/g, '_');
+                    const value = row.cells[1].textContent;
+                    
+                    row.cells[1].innerHTML = `<input type="text" class="form-control" data-key="${key}" value="${value.replace(/"/g, '&quot;')}">`;
+                    row.cells[1].classList.add('edit-mode');
+                });
             } else {
                 // Save changes
                 saveEdits();
@@ -522,27 +443,56 @@
                 editButton.classList.replace('btn-success', 'btn-primary');
             }
         }
-
+        
         function saveEdits() {
             // Get values from input fields
             currentJobData.job_title = document.querySelector('#jobTitle input').value;
             currentJobData.company_name = document.querySelector('#companyName input').value;
             currentJobData.required_skills = document.querySelector('#requiredSkills input').value;
             currentJobData.publication_date = document.querySelector('#publicationDate input').value;
-            currentJobData.author = document.querySelector('#author input').value;
             currentJobData.location = document.querySelector('#location input').value;
             currentJobData.experience_required = document.querySelector('#experienceRequired input').value;
             currentJobData.salary_range = document.querySelector('#salaryRange input').value;
+            
+            // Get author information
+            currentJobData.author = document.querySelector('#authorName').value;
+            currentJobData.author_profile_url = document.querySelector('#authorUrl').value;
+            
+            // Get additional info values
+            document.querySelectorAll('tr.additional-info-row td.edit-mode input').forEach(input => {
+                const key = input.getAttribute('data-key');
+                const value = input.value;
+                
+                if (!currentJobData.additional_info) {
+                    currentJobData.additional_info = {};
+                }
+                
+                currentJobData.additional_info[key] = value;
+            });
             
             // Update the table with new values
             document.getElementById('jobTitle').textContent = currentJobData.job_title;
             document.getElementById('companyName').textContent = currentJobData.company_name;
             document.getElementById('requiredSkills').textContent = currentJobData.required_skills;
             document.getElementById('publicationDate').textContent = currentJobData.publication_date;
-            document.getElementById('author').textContent = currentJobData.author;
             document.getElementById('location').textContent = currentJobData.location;
             document.getElementById('experienceRequired').textContent = currentJobData.experience_required;
             document.getElementById('salaryRange').textContent = currentJobData.salary_range;
+            
+            // Update author with link if URL is available
+            const authorLinkCell = document.getElementById('authorLink');
+            if (currentJobData.author_profile_url && currentJobData.author) {
+                authorLinkCell.innerHTML = `<a href="${currentJobData.author_profile_url}" target="_blank">${currentJobData.author}</a>`;
+            } else {
+                authorLinkCell.textContent = currentJobData.author || "not found";
+            }
+            
+            // Update additional info cells
+            document.querySelectorAll('tr.additional-info-row').forEach(row => {
+                const key = row.cells[0].textContent.toLowerCase().replace(/\s+/g, '_');
+                row.cells[1].textContent = currentJobData.additional_info[key] || "";
+                row.cells[1].classList.remove('edit-mode');
+            });
             
             // Remove edit-mode class
             document.querySelectorAll('.edit-mode').forEach(el => {
@@ -554,27 +504,6 @@
             const element = document.getElementById(id);
             element.innerHTML = `<input type="text" class="form-control" value="${value.replace(/"/g, '&quot;')}">`;
             element.classList.add('edit-mode');
-        }
-        
-        function saveEdits() {
-            // Get values from input fields
-            currentJobData.job_title = document.querySelector('#jobTitle input').value;
-            currentJobData.company_name = document.querySelector('#companyName input').value;
-            currentJobData.required_skills = document.querySelector('#requiredSkills input').value;
-            currentJobData.publication_date = document.querySelector('#publicationDate input').value;
-            currentJobData.author = document.querySelector('#author input').value;
-            
-            // Update the table with new values
-            document.getElementById('jobTitle').textContent = currentJobData.job_title;
-            document.getElementById('companyName').textContent = currentJobData.company_name;
-            document.getElementById('requiredSkills').textContent = currentJobData.required_skills;
-            document.getElementById('publicationDate').textContent = currentJobData.publication_date;
-            document.getElementById('author').textContent = currentJobData.author;
-            
-            // Remove edit-mode class
-            document.querySelectorAll('.edit-mode').forEach(el => {
-                el.classList.remove('edit-mode');
-            });
         }
         
         function loadSavedJobs() {
@@ -661,12 +590,6 @@
                 });
             })
             .then(data => {
-                // Close the confirmation modal
-                const deleteModal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
-                if (deleteModal) {
-                    deleteModal.hide();
-                }
-                
                 // Show success toast and reload jobs
                 showDeleteSuccess();
             })
@@ -692,6 +615,7 @@
         }
         
         function escapeHtml(unsafe) {
+            if (!unsafe) return "";
             return unsafe
                  .replace(/&/g, "&amp;")
                  .replace(/</g, "&lt;")

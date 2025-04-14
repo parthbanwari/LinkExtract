@@ -1,0 +1,173 @@
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f5f7fa;
+    padding: 20px;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.card {
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.card-header {
+    background-color: #4361ee;
+    color: white;
+    border-radius: 10px 10px 0 0 !important;
+    padding: 15px 20px;
+}
+
+#urlInput {
+    border-radius: 5px;
+    padding: 10px;
+    font-size: 16px;
+}
+
+.btn-primary {
+    background-color: #4361ee;
+    border-color: #4361ee;
+}
+
+.btn-primary:hover {
+    background-color: #3a56d4;
+    border-color: #3a56d4;
+}
+
+.btn-success {
+    background-color: #4CAF50;
+    border-color: #4CAF50;
+}
+
+.btn-success:hover {
+    background-color: #45a049;
+    border-color: #45a049;
+}
+
+.loading {
+    display: none;
+    font-weight: bold;
+    color: #4361ee;
+}
+
+.results-container {
+    display: none;
+}
+
+table {
+    width: 100%;
+}
+
+.edit-mode input {
+    width: 100%;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1050;
+}
+/* Add or modify this CSS rule */
+.raw-content-container {
+    max-height: 300px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+}
+
+#rawPageContent {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+.saved-jobs-table th, .saved-jobs-table td {
+    vertical-align: middle;
+}
+
+.nav-tabs {
+    border-bottom: 2px solid #dee2e6;
+    margin-bottom: 20px;
+}
+
+.nav-tabs .nav-link {
+    border: none;
+    color: #495057;
+    font-weight: 500;
+    padding: 10px 15px;
+}
+
+.nav-tabs .nav-link.active {
+    color: #4361ee;
+    background-color: transparent;
+    border-bottom: 3px solid #4361ee;
+}
+
+.action-buttons .btn {
+    padding: 0.25rem 0.5rem;
+    margin-right: 0.25rem;
+}
+
+.action-buttons .btn:last-child {
+    margin-right: 0;
+}
+.loading {
+    display: none;
+}
+.edit-mode input {
+    width: 100%;
+}
+.results-container {
+    display: none;
+}
+.toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1050;
+}
+.saved-jobs-table th, .saved-jobs-table td {
+    vertical-align: middle;
+}
+.action-buttons .btn {
+    margin-right: 5px;
+}
+.nav-tabs .nav-link {
+    display: flex;
+    align-items: center;
+}
+/* Improved styling for raw content container */
+.raw-content-container {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+    padding: 0;
+}
+.raw-content-container pre {
+    padding: 1rem;
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+/* Add some hover effect to table rows */
+.table tbody tr:hover {
+    background-color: rgba(0,0,0,.075);
+}
+/* Make the table headers more prominent */
+.table thead th {
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+}
+/* Better styling for the field column */
+#jobDataTable td:first-child {
+    font-weight: 600;
+    width: 30%;
+    background-color: #f8f9fa;
+}

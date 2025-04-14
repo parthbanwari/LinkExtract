@@ -123,6 +123,10 @@ def analyze_link():
             }), 403
             
         print(f"Successfully fetched content, length: {len(content)}")
+        
+        # Get the HTML content for extracting author profile URL
+        html_content = get_raw_html(url)
+        
         gemini_response = generate_gemini_response(content, url)
         print("Gemini response:", gemini_response)  # Add this to see raw Gemini response
         
@@ -131,13 +135,31 @@ def analyze_link():
         print("Parsed data:", parsed_data)  # Add this to see what was parsed
         parsed_data['url'] = url  # Add the URL to the parsed data
         
+        # Extract author profile URL from the HTML content
+        author_profile_url = extract_author_profile_url(html_content, url)
+        if author_profile_url:
+            parsed_data['author_profile_url'] = author_profile_url
+        
         return jsonify({
             'results': gemini_response,
-            'parsed_data': parsed_data
+            'parsed_data': parsed_data,
+            'raw_content': content  # Now this will be just text
         })
     except Exception as e:
         print(f"Error in analyze_link: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+def get_raw_html(url):
+    """Get the raw HTML content for link extraction"""
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        }
+        response = requests.get(url, headers=headers, timeout=20)
+        response.raise_for_status()
+        return response.text
+    except:
+        return ""
 
 # Improve the request headers to better mimic a real browser
 def get_page_content(url):
@@ -152,12 +174,10 @@ def get_page_content(url):
             'Cache-Control': 'max-age=0'
         }
         
-        # Add logging to debug the response
         print(f"Fetching URL: {url}")
         response = requests.get(url, headers=headers, timeout=20)
         print(f"Response status code: {response.status_code}")
         
-        # If LinkedIn redirects to login page, it will contain this string
         if "authwall" in response.url or "signup" in response.url:
             print("LinkedIn login wall detected")
             return "LinkedIn requires authentication to access this content. Unable to extract job data."
@@ -165,16 +185,8 @@ def get_page_content(url):
         response.raise_for_status()
         soup = BeautifulSoup(response.content, "html.parser")
         
-        # Log page title for debugging
-        print(f"Page title: {soup.title.string if soup.title else 'No title found'}")
-        
-        # For LinkedIn, extract specific parts that might contain job information
-        main_content = soup.find('div', {'class': 'feed-shared-update-v2'})
-        if main_content:
-            return main_content.get_text(strip=True)
-        
-        # Fall back to whole page if specific content not found
-        return soup.get_text(strip=True)[:100000]
+        # Always return text content, never raw HTML
+        return soup.get_text(strip=True)
     except requests.exceptions.RequestException as e:
         raise Exception(f"Error fetching URL: {e}")
     
@@ -216,6 +228,41 @@ Present the information only as a standard markdown table with a header row and 
         return response.text
     except Exception as e:
         raise Exception(f"Gemini API Error: {e}")
+
+def extract_author_profile_url(content, job_url):
+    """Try to extract the author profile URL from LinkedIn content"""
+    try:
+        # Parse the URL to get the base domain
+        from urllib.parse import urlparse
+        parsed_url = urlparse(job_url)
+        linkedin_domain = f"{parsed_url.scheme}://{parsed_url.netloc}"
+        
+        # Process the HTML content
+        soup = BeautifulSoup(content, "html.parser")
+        
+        # Look for profile links with priority for author links 
+        profile_links = soup.find_all('a', href=lambda href: href and ('/in/' in href))
+        
+        if profile_links:
+            # Get the first profile link (usually the author)
+            href = profile_links[0]['href']
+            
+            # If it's a relative URL, make it absolute
+            if href.startswith('/'):
+                return linkedin_domain + href
+            return href
+        else:
+            # Try to extract LinkedIn profile URLs using regex
+            import re
+            profile_pattern = r'(https?://(?:www\.)?linkedin\.com/in/[\w-]+)'
+            match = re.search(profile_pattern, content)
+            if match:
+                return match.group(1)
+                
+        return None
+    except Exception as e:
+        print(f"Error extracting author profile URL: {e}")
+        return None
 
 def parse_gemini_response(response_text):
     """Parse the markdown table response from Gemini into a dictionary"""
