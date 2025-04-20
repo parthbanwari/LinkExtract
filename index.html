@@ -113,13 +113,17 @@
                     </div>
 
                     <div class="card mt-3">
-                        <div class="card-header">
-                            <h5 class="card-title mb-0">Raw Page Content</h5>
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">Extracted Job Content</h5>
+                            <span class="badge bg-primary" id="contentLength">0 characters</span>
                         </div>
                         <div class="card-body p-0">
                             <div class="raw-content-container">
-                                <pre id="rawPageContent" class="bg-light">No content available yet.</pre>
+                                <pre id="rawPageContent" class="bg-light p-3">No content extracted yet.</pre>
                             </div>
+                        </div>
+                        <div class="card-footer" id="contentQualityInfo">
+                            <small class="text-muted">Content extraction quality indicator will appear here after analysis.</small>
                         </div>
                     </div>
                     

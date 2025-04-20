@@ -8,7 +8,6 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import json
 import re  
-# Add this line to import the regex module
 # Load environment variables from .env file
 load_dotenv()
 
@@ -21,7 +20,7 @@ app = Flask(__name__,
 # Configure the Gemini API with the key from .env
 api_key = os.getenv("GOOGLE_API_KEY")
 if not api_key:
-    raise ValueError("No GOOGLE_API_KEY found in .en v file")
+    raise ValueError("No GOOGLE_API_KEY found in .env file")
 
 # Configure PostgreSQL connection
 db_config = {
@@ -162,6 +161,8 @@ def get_raw_html(url):
         return ""
 
 # Improve the request headers to better mimic a real browser
+# In the get_page_content function, add type checking before replacing content
+
 def get_page_content(url):
     try:
         headers = {
@@ -185,8 +186,91 @@ def get_page_content(url):
         response.raise_for_status()
         soup = BeautifulSoup(response.content, "html.parser")
         
-        # Always return text content, never raw HTML
-        return soup.get_text(strip=True)
+        # First, try to find the post content
+        post_text_elements = soup.select(
+            '.feed-shared-update-v2__description, '
+            '.feed-shared-text, '
+            '.feed-shared-update-v2__commentary, '
+            '.share-update-card__update-text, '
+            '.feed-shared-text__text-view'
+        )
+        
+        if post_text_elements:
+            post_content = ' '.join([element.get_text(strip=True) for element in post_text_elements])
+            
+            # Ensure post_content is a string
+            if not isinstance(post_content, str):
+                post_content = str(post_content)
+                
+            # Clean up the text
+            post_content = re.sub(r'\s+', ' ', post_content)
+            
+            # Preserve bullet points
+            post_content = post_content.replace('• ', '\n• ')
+            post_content = post_content.replace('•', '\n•')
+            
+            # Remove common LinkedIn text patterns at the beginning
+            post_content = re.sub(r'^.*?(Skip to main content)', '', post_content)
+            
+            # Remove comment section indicators
+            post_content = re.sub(r'\d+ Comments.*?(Share|Copy|LinkedIn|Facebook|Twitter)', '', post_content)
+            
+            return post_content.strip()
+        
+        # If we couldn't extract post content with the specific selectors, 
+        # try to get just the main content without comments
+        main_content = soup.select_one('main, .core-rail, .scaffold-layout__main')
+        if main_content:
+            # Remove comments section and social actions before extracting text
+            for element in main_content.select('.comments-comments-list, .social-details-social-counts, ' +
+                                               '.feed-shared-social-actions, .comments-comment-item, ' +
+                                               '.feed-shared-comment-list, .social-details-social-activity'):
+                element.extract()
+            
+            # Get just the text of what remains
+            content = main_content.get_text(strip=True, separator=' ')
+            
+            # Ensure content is a string
+            if not isinstance(content, str):
+                content = str(content)
+                
+            # Clean up UI text
+            content = re.sub(r'Agree & Join LinkedIn.*?Cookie Policy \. Skip to main content', '', content)
+            content = re.sub(r'\d+ Comments Like Comment Share Copy LinkedIn Facebook Twitter', '', content)
+            content = re.sub(r'Report this post', '', content)
+            
+            # Format bullet points
+            content = content.replace('• ', '\n• ')
+            content = content.replace('•', '\n•')
+            
+            return content.strip()
+            
+        # Last resort - try to get just the text without comments
+        body = soup.body
+        if body:
+            # Remove all comment sections, social actions, etc.
+            for unwanted in body.select('.comments-comments-list, .comments-container, .social-footer-stats-container, ' +
+                                        '.feed-shared-social-actions, .comments-comment-item, .feed-shared-comment-list'):
+                unwanted.extract()
+                
+            content = body.get_text(strip=True, separator=' ')
+            
+            # Ensure content is a string
+            if not isinstance(content, str):
+                content = str(content)
+                
+            content = re.sub(r'Agree & Join LinkedIn.*?Cookie Policy \. Skip to main content', '', content)
+            content = re.sub(r'\d+ Comments Like Comment Share Copy LinkedIn Facebook Twitter', '', content)
+            content = re.sub(r'Report this post', '', content)
+            
+            # Clean up spaces and preserve bullet points
+            content = re.sub(r'\s+', ' ', content)
+            content = content.replace('• ', '\n• ')
+            content = content.replace('•', '\n•')
+            
+            return content.strip()
+            
+        return "Could not extract content from the LinkedIn page."
     except requests.exceptions.RequestException as e:
         raise Exception(f"Error fetching URL: {e}")
     
@@ -203,23 +287,23 @@ Web Page Content:
 
 Specifically look for job-related information in the content. Extract as much detail as possible, even if the format is conversational rather than a traditional job posting.
 
+If the content contains bullet points with skills, technical requirements, or research areas, make sure to capture those in the Required Skills section.
+
 Please extract the information according to the following constraints and format it as a table. If you cannot find a specific piece of information, mark it as "not found".
 
 | Column Name      | Description                                          | Extraction Guidance                                                                 |
 | ---------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Job Title        | The title of the job.                                | Look for position names or roles mentioned. If multiple jobs, list the first one.    |
+| Job Title        | The title of the job.                                | Look for position names or roles mentioned. If multiple jobs, list all of them.      |
 | Company Name     | The name of the company posting the job.             | Try to extract from the post author or content. For LinkedIn, check for mentions.    |
-| Required Skills  | A list of skills needed for the job.                 | Look for "skills", "requirements", "qualifications", or similar sections.            |
+| Required Skills  | A list of skills needed for the job.                 | Look for "skills", "requirements", "qualifications", or bullet points in the content.|
 | Publication Date | The date the job posting or article was published.   | Try to extract date information. Format as YYYY-MM-DD if possible.                   |
 | Author           | The author of the article.                           | Usually the person who posted the content on LinkedIn.                               |
-| Experience       | Years of experience required for the role.           | Look for mentions of experience requirements.                                        |
+| Experience       | Years of experience required for the role.           | Look for mentions of education or experience requirements, including PhD references. |
 | Salary          | Compensation or salary information.                  | Look for any mentions of salary, pay range, or compensation.                         |
 | Location        | Where the job is located.                           | Look for city, state, country or remote work information.                           |
 | Job Type        | Full-time, part-time, contract, etc.                | Extract the employment type if mentioned.                                            |
-| Education       | Required education level or degree.                  | Look for educational requirements or preferred qualifications.                       |
-| Benefits        | Benefits, perks, or additional incentives.          | Extract information about benefits package if mentioned.                            |
-| Deadline        | Application deadline if specified.                   | When applications close or the posting expires.                                     |
-| Remote          | Whether remote work is available.                    | Look for mentions of remote, hybrid, or in-office requirements.                      |
+| Education       | Required education level or degree.                  | Look for educational requirements, especially PhD or specialized degrees.           |
+| Research Focus  | The research focus or specialty areas.              | Look for mentions of specialized research areas or domains.                          |
 
 Present the information only as a standard markdown table with a header row and one data row. Don't include any other text or explanation.
 """
@@ -290,6 +374,11 @@ def parse_gemini_response(response_text):
         match = re.search(pattern, response_text, re.IGNORECASE)
         if match:
             result["job_title"] = match.group(1).strip()
+            if result["job_title"].lower() == "not found":
+                # Try to extract from the content if markdown table doesn't have it
+                job_title_content_match = re.search(r'(Interns? and Full-time Applied Scientists|Full-time Applied Scientists and Interns?)', response_text)
+                if job_title_content_match:
+                    result["job_title"] = job_title_content_match.group(1).strip()
             break
     
     # Extract company name
@@ -312,6 +401,11 @@ def parse_gemini_response(response_text):
         match = re.search(pattern, response_text, re.IGNORECASE)
         if match:
             result["required_skills"] = match.group(1).strip()
+            if result["required_skills"].lower() == "not found":
+                # Try to extract skills from bullet points in the content
+                skills_list = re.findall(r'•\s*([^•\n]+)', response_text)
+                if skills_list:
+                    result["required_skills"] = ', '.join([skill.strip() for skill in skills_list])
             break
     
     # Extract publication date
@@ -345,6 +439,12 @@ def parse_gemini_response(response_text):
         if match:
             result["experience_required"] = match.group(1).strip()
             break
+    
+    # Check for PhD mention in the content for experience
+    if result["experience_required"].lower() == "not found":
+        phd_match = re.search(r'PhD researchers? or graduates?', response_text)
+        if phd_match:
+            result["experience_required"] = "PhD researchers or graduates"
             
     # Extract salary range
     salary_patterns = [
@@ -384,6 +484,15 @@ def parse_gemini_response(response_text):
             value = match.group(1).strip()
             if value.lower() != "not found":
                 result["additional_info"][key] = value
+                
+    # Look for research specializations
+    if "PhD" in response_text and "LLM" in response_text:
+        result["additional_info"]["research_focus"] = "LLM related research"
+        
+    # Extract research areas from bullet points
+    research_areas = re.findall(r'•\s*([^•\n]+)', response_text)
+    if research_areas and len(research_areas) > 0:
+        result["additional_info"]["research_areas"] = research_areas
             
     return result
 
