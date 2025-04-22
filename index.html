@@ -55,6 +55,9 @@
                                 <button class="btn btn-primary btn-sm me-2" id="editButton">
                                     <i class="fas fa-edit me-1"></i>Edit
                                 </button>
+                                <button class="btn btn-info btn-sm me-2" id="addColumnButton" style="display: none;">
+                                    <i class="fas fa-plus me-1"></i>Add Column
+                                </button>
                                 <button class="btn btn-success btn-sm" id="saveButton">
                                     <i class="fas fa-save me-1"></i>Save to Database
                                 </button>
@@ -92,6 +95,10 @@
                                     <tr>
                                         <td>Salary Range</td>
                                         <td id="salaryRange">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Application Status</td>
+                                        <td id="applicationStatus">-</td>
                                     </tr>
                                     <tr>
                                         <td>Publication Date</td>
@@ -156,6 +163,7 @@
                                         <th>Job Title</th>
                                         <th>Company</th>
                                         <th>Skills</th>
+                                        <th>App Status</th>
                                         <th>Date</th>
                                         <th>Author</th>
                                         <th>Actions</th>
@@ -219,6 +227,32 @@
             </div>
         </div>
     </div>
+    <!-- Add Column Modal -->
+    <div class="modal fade" id="addColumnModal" tabindex="-1" aria-labelledby="addColumnModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title" id="addColumnModalLabel">Add New Column</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="columnName" class="form-label">Column Name:</label>
+                        <input type="text" class="form-control" id="columnName" placeholder="Enter column name">
+                        <small class="text-muted">Enter a descriptive name for the column (e.g., "Remote Work", "Contract Type")</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="columnValue" class="form-label">Column Value:</label>
+                        <input type="text" class="form-control" id="columnValue" placeholder="Enter column value">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-info" id="confirmAddColumnButton">Add Column</button>
+                </div>
+            </div>
+        </div>
+</div>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -296,6 +330,7 @@
                     document.getElementById('companyName').textContent = data.parsed_data.company_name || "not found";
                     document.getElementById('requiredSkills').textContent = data.parsed_data.required_skills || "not found";
                     document.getElementById('publicationDate').textContent = data.parsed_data.publication_date || "not found";
+                    document.getElementById('applicationStatus').textContent = data.parsed_data.application_status || "Not Applied";
                     
                     // Display the author as a link if profile URL is available
                     const authorLinkCell = document.getElementById('authorLink');
@@ -402,11 +437,13 @@
         function toggleEditMode() {
             isEditMode = !isEditMode;
             const editButton = document.getElementById('editButton');
+            const addColumnButton = document.getElementById('addColumnButton');
             
             if (isEditMode) {
                 // Switch to edit mode
                 editButton.innerHTML = '<i class="fas fa-check me-1"></i>Done';
                 editButton.classList.replace('btn-primary', 'btn-success');
+                addColumnButton.style.display = 'inline-block';
                 
                 // Replace text with input fields
                 convertToInputField('jobTitle', currentJobData.job_title || "");
@@ -416,6 +453,7 @@
                 convertToInputField('location', currentJobData.location || "");
                 convertToInputField('experienceRequired', currentJobData.experience_required || "");
                 convertToInputField('salaryRange', currentJobData.salary_range || "");
+                convertToInputField('applicationStatus', currentJobData.application_status || "Not Applied");
                 
                 // Handle the author field differently - preserve the link information
                 const authorElement = document.getElementById('authorLink');
@@ -445,6 +483,7 @@
                 // Switch back to view mode
                 editButton.innerHTML = '<i class="fas fa-edit me-1"></i>Edit';
                 editButton.classList.replace('btn-success', 'btn-primary');
+                addColumnButton.style.display = 'none';
             }
         }
         
@@ -457,6 +496,7 @@
             currentJobData.location = document.querySelector('#location input').value;
             currentJobData.experience_required = document.querySelector('#experienceRequired input').value;
             currentJobData.salary_range = document.querySelector('#salaryRange input').value;
+            currentJobData.application_status = document.querySelector('#applicationStatus input').value;
             
             // Get author information
             currentJobData.author = document.querySelector('#authorName').value;
@@ -482,6 +522,7 @@
             document.getElementById('location').textContent = currentJobData.location;
             document.getElementById('experienceRequired').textContent = currentJobData.experience_required;
             document.getElementById('salaryRange').textContent = currentJobData.salary_range;
+            document.getElementById('applicationStatus').textContent = currentJobData.application_status;
             
             // Update author with link if URL is available
             const authorLinkCell = document.getElementById('authorLink');
@@ -532,6 +573,7 @@
                             <td>${escapeHtml(job.job_title)}</td>
                             <td>${escapeHtml(job.company_name)}</td>
                             <td>${escapeHtml(job.required_skills)}</td>
+                            <td>${escapeHtml(job.application_status || "Not Applied")}</td>
                             <td>${escapeHtml(job.publication_date)}</td>
                             <td>${escapeHtml(job.author)}</td>
                             <td class="action-buttons">
@@ -627,6 +669,74 @@
                  .replace(/"/g, "&quot;")
                  .replace(/'/g, "&#039;");
         }
+        // Variables and functions for adding columns
+        const addColumnButton = document.getElementById('addColumnButton');
+        const addColumnModal = new bootstrap.Modal(document.getElementById('addColumnModal'));
+        const confirmAddColumnButton = document.getElementById('confirmAddColumnButton');
+
+        // Show/hide add column button based on edit mode
+        function updateAddColumnButtonVisibility() {
+            if (isEditMode) {
+                addColumnButton.style.display = 'inline-block';
+            } else {
+                addColumnButton.style.display = 'none';
+            }
+        }
+
+        // Add column button click handler
+        addColumnButton.addEventListener('click', function() {
+            // Clear previous inputs
+            document.getElementById('columnName').value = '';
+            document.getElementById('columnValue').value = '';
+            
+            // Show the modal
+            addColumnModal.show();
+        });
+
+        // Confirm add column button click handler
+        confirmAddColumnButton.addEventListener('click', function() {
+            const columnName = document.getElementById('columnName').value.trim();
+            const columnValue = document.getElementById('columnValue').value.trim();
+            
+            if (!columnName) {
+                alert('Please enter a column name');
+                return;
+            }
+            
+            // Create a key for the additional_info object (snake_case)
+            const columnKey = columnName.toLowerCase().replace(/\s+/g, '_');
+            
+            // Add the new field to currentJobData
+            if (!currentJobData.additional_info) {
+                currentJobData.additional_info = {};
+            }
+            currentJobData.additional_info[columnKey] = columnValue;
+            
+            // Add the new row to the table
+            const jobDataTable = document.getElementById('jobDataTable');
+            const newRow = document.createElement('tr');
+            newRow.classList.add('additional-info-row');
+            
+            // Format the display name (Title Case)
+            const formattedName = columnName.replace(/\b\w/g, l => l.toUpperCase());
+            
+            newRow.innerHTML = `
+                <td>${formattedName}</td>
+                <td class="edit-mode"><input type="text" class="form-control" data-key="${columnKey}" value="${columnValue.replace(/"/g, '&quot;')}"></td>
+            `;
+            
+            jobDataTable.appendChild(newRow);
+            
+            // Hide the modal
+            addColumnModal.hide();
+        });
+
+        // Update the toggleEditMode function to show/hide the add column button
+        const originalToggleEditMode = toggleEditMode;
+        toggleEditMode = function() {
+            originalToggleEditMode();
+            updateAddColumnButtonVisibility();
+        };
     </script>
 </body>
 </html>

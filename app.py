@@ -57,6 +57,7 @@ def init_db():
         experience_required TEXT,
         salary_range TEXT,
         location TEXT,
+        application_status TEXT,
         additional_info JSONB,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
@@ -78,8 +79,9 @@ def add_missing_columns():
     cur.execute('''
     ALTER TABLE jobs 
     ADD COLUMN IF NOT EXISTS experience_required TEXT,
-    ADD COLUMN IF NOT EXISTS salary_range TEXT,
+    ADD COLUMN IF NOT EXISTS salary_range TEXT, 
     ADD COLUMN IF NOT EXISTS location TEXT,
+    ADD COLUMN IF NOT EXISTS application_status TEXT DEFAULT 'Not Applied',
     ADD COLUMN IF NOT EXISTS additional_info JSONB DEFAULT '{}'::jsonb;
     ''')
     
@@ -117,6 +119,7 @@ def analyze_link():
                     'required_skills': 'not found (LinkedIn authentication required)',
                     'publication_date': 'not found (LinkedIn authentication required)',
                     'author': 'not found (LinkedIn authentication required)',
+                    'application_status': 'Not Applied',
                     'url': url
                 }
             }), 403
@@ -133,6 +136,10 @@ def analyze_link():
         parsed_data = parse_gemini_response(gemini_response)
         print("Parsed data:", parsed_data)  # Add this to see what was parsed
         parsed_data['url'] = url  # Add the URL to the parsed data
+        
+        # Set default application status if not already set
+        if 'application_status' not in parsed_data:
+            parsed_data['application_status'] = 'Not Applied'
         
         # Extract author profile URL from the HTML content
         author_profile_url = extract_author_profile_url(html_content, url)
@@ -304,6 +311,7 @@ Please extract the information according to the following constraints and format
 | Job Type        | Full-time, part-time, contract, etc.                | Extract the employment type if mentioned.                                            |
 | Education       | Required education level or degree.                  | Look for educational requirements, especially PhD or specialized degrees.           |
 | Research Focus  | The research focus or specialty areas.              | Look for mentions of specialized research areas or domains.                          |
+| Application Status | The current application status.                      | Default to "Not Applied" unless specified otherwise.                                 |
 
 Present the information only as a standard markdown table with a header row and one data row. Don't include any other text or explanation.
 """
@@ -361,6 +369,7 @@ def parse_gemini_response(response_text):
         "experience_required": "not found",
         "salary_range": "not found",
         "location": "not found",
+        "application_status": "Not Applied",  # Default application status
         # Add an additional field to store extra data
         "additional_info": {}
     }
@@ -469,6 +478,19 @@ def parse_gemini_response(response_text):
             result["location"] = match.group(1).strip()
             break
     
+    # Extract application status
+    application_status_patterns = [
+        r'\|\s*(?:Application Status|Status)\s*\|\s*([^|]+)\s*\|',
+        r'Application Status:?\s*([^\n]+)'
+    ]
+    for pattern in application_status_patterns:
+        match = re.search(pattern, response_text, re.IGNORECASE)
+        if match:
+            status = match.group(1).strip()
+            if status.lower() != "not found":
+                result["application_status"] = status
+            break
+    
     # Extract any other information found in the response that might be useful
     other_patterns = [
         (r'\|\s*(?:Job Type|Employment Type)\s*\|\s*([^|]+)\s*\|', "job_type"),
@@ -526,9 +548,9 @@ def save_job():
         cur.execute('''
         INSERT INTO jobs (
             job_title, company_name, required_skills, publication_date, author, url,
-            experience_required, salary_range, location, additional_info
+            experience_required, salary_range, location, application_status, additional_info
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id
         ''', (
             data.get('job_title', 'not found'),
@@ -540,6 +562,7 @@ def save_job():
             data.get('experience_required', 'not found'),
             data.get('salary_range', 'not found'),
             data.get('location', 'not found'),
+            data.get('application_status', 'Not Applied'),
             json.dumps(data.get('additional_info', {}))
         ))
         
